@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1, user-scalable=no"/>
+    <title>Snake</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            text-align: center;
+        }
+        .snake-wrapper {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            padding: 1px;
+            border: 1px solid #666;
+        }
+        .snake-field {
+            max-width: 100%;
+            height: auto;
+        }
+        .btn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 33.333%;
+            background: rgba(0,0,0,0);
+            cursor: pointer;
+        }
+        .btn-lf {
+            top: 33.333%;
+            width: 50%;
+        }
+        .btn-rt {
+            top: 33.333%;
+            width: 50%;
+            left: 50%;
+        }
+        .btn-dw {
+            top: 66.666%;
+        }
+    </style>
+</head>
+<body>
+    <div class="snake-wrapper">
+        <canvas id="snake-field" class="snake-field" width="400" height="400">Pure browser...</canvas>
+        <div class="btn btn-up" data-direction="90"></div>
+        <div class="btn btn-lf" data-direction="180"></div>
+        <div class="btn btn-rt" data-direction="0"></div>
+        <div class="btn btn-dw" data-direction="270"></div>
+    </div>
+    <script>
+        ;(function (){
+            'use strict';
+
+            /**
+             * constants and variables:
+             */
+            var CELL_SIZE         = 10,     // cell size in px
+                FIELD_SIZE        = 40,     // cell's count on each side
+                SPEED_INCREASE    = -5,     // number of milliseconds for increase snake's speed
+
+                // Key Codes
+                KEY_CODE = {
+                    left:   37,
+                    up:     38,
+                    right:  39,
+                    down:   40,
+                    a:      65,
+                    d:      68,
+                    s:      83,
+                    w:      87
+                },
+
+                canvas      = document.getElementById('snake-field'),   // canvas (field)
+                ctx         = canvas.getContext('2d'),                  // canvas' context
+                snake       = [[4,0],[3,0],[2,0],[1,0],[0,0]],          // initial size and coordinates of snake (x, y)
+                direction   = 0,                                        // initial direction (deg)
+                speed       = 200,                                      // initial snake's speed (ms)
+                food        = [0,0],                                    // initial food's coordinates
+                touch_target;                                           // touch event target
+
+
+            /**
+             * get new coordinates by direction
+             * @param {int} x
+             * @param {int} y
+             */
+            function getNewCoordinates(x, y) {
+                var newX = Math.round(Math.cos(direction * Math.PI / 180));
+                var newY = Math.round(-Math.sin(direction * Math.PI / 180));
+                return [x + newX, y + newY];
+            }
+
+
+            /**
+             * key down event listener / set snake's direction (in deg)
+             * @param {String} key event name
+             * @param {Function}
+             */
+            document.addEventListener('keydown', function (event) {
+                switch (event.keyCode) {
+                    case KEY_CODE.left:
+                    case KEY_CODE.a:
+                        direction = 180;
+                        break;
+                    case KEY_CODE.up:
+                    case KEY_CODE.w:
+                        direction = 90;
+                        break;
+                    case KEY_CODE.right:
+                    case KEY_CODE.d:
+                        direction = 0;
+                        break;
+                    case KEY_CODE.down:
+                    case KEY_CODE.s:
+                        direction = 270;
+                        break;
+                }
+            });
+
+            /**
+             * touch events listeners
+             * @param {String} event
+             * @param {Function} function
+             */
+            document.addEventListener('touchstart', function (startEvent) {
+                touch_target = startEvent.target;
+            });
+            document.addEventListener('touchend', function (endEvent) {
+                var target = endEvent.target;
+                if (target.classList.contains('btn')) {
+                    direction = parseInt(target.getAttribute('data-direction'));
+                    event.preventDefault();
+                }
+            });
+
+
+            /**
+             * draw snake
+             * @param {Array} snake
+             */
+            function drawSnake(snake) {
+                var snake_length = snake.length,
+                    snake_color  = 0;
+
+                for (var i = 0; i < snake_length; i++) {
+                    snake_color += parseInt(200 / snake_length);
+                    ctx.fillStyle = 'rgb(' + snake_color + ',' + snake_color + ',' + snake_color + ')';
+                    ctx.fillRect(snake[i][0] * CELL_SIZE, snake[i][1] * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+
+            /**
+             * Get random int (x/y for new food position)
+             * @return {Number}
+             */
+            function getRandomInt(min, max)
+            {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+
+            /**
+             * check collision
+             * @param {Array} pos
+             * @param {int} start
+             * @return {Boolean}
+             */
+            function isOnSnake(pos, start) {
+                var snake_length = snake.length;
+
+                for (var i = start; i < snake_length; i++) {
+                    if (snake[i][0] == pos[0] && snake[i][1] == pos[1]) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            /**
+             * draw food
+             */
+            function drawFood() {
+                var x = 0, y = 0;
+
+                do {
+                    x = getRandomInt(0, FIELD_SIZE-1);
+                    y = getRandomInt(0, FIELD_SIZE-1);
+                } while (isOnSnake([x,y], 0));
+
+                food = [x,y];
+
+                ctx.fillStyle = 'green';
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+
+            /**
+             * main action
+             */
+            var action = function() {
+                clearInterval(interval);
+
+                var last_idx = snake.length - 1;
+                ctx.clearRect(snake[last_idx][0] * CELL_SIZE, snake[last_idx][1] * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+                var newHead = getNewCoordinates(snake[0][0], snake[0][1]);
+                snake.unshift(newHead);
+
+                if (newHead[0] == food[0] && newHead[1] == food[1]) {
+                    drawFood();
+                    speed += SPEED_INCREASE;
+                } else {
+                    snake.pop();
+                }
+
+                if (newHead[0] >= FIELD_SIZE || newHead[1] >= FIELD_SIZE || newHead[0] < 0 || newHead[1] < 0 || isOnSnake(newHead, 1)) {
+                    console.log('Game Over');
+                } else {
+                    drawSnake(snake);
+                    interval = window.setInterval(action, speed);
+                }
+            };
+
+            // run game (draw snake, food, and run action...)
+            drawSnake(snake);
+            drawFood();
+
+            var interval = window.setInterval(action, speed);
+
+        })();
+    </script>
+</body>
+</html>
